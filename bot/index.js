@@ -28,7 +28,7 @@ client.on('messageCreate', async (message) => {
     }
 
     db.logAttempt(userId);
-    const link = `http://localhost:${process.env.PORT}/verify?user=${userId}`;
+    const link = `https://chronoseal.zeabur.app/verify?user=${user.id}`;
     message.author.send(`Please verify yourself using the following link:\n${link}`);
     message.reply('📩 Check your DMs for the verification link.');
   }
