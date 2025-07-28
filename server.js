@@ -7,7 +7,7 @@ const { Client, GatewayIntentBits, Partials, EmbedBuilder } = require('discord.j
 const db = require('./database/db');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 const STAFF_IDS = process.env.STAFF_ROLE_IDS.split(',');
 const VERIFIED_ROLE_ID = process.env.VERIFIED_ROLE_ID;
 const NON_VERIFIED_ROLE_ID = process.env.NON_VERIFIED_ROLE_ID;
