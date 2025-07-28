@@ -1,97 +1,111 @@
 require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const { Client, GatewayIntentBits, EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const Database = require('better-sqlite3');
 const cors = require('cors');
-const { Client, GatewayIntentBits, Partials, EmbedBuilder } = require('discord.js');
-const db = require('./database/db.js');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-const upload = multer({ storage: multer.memoryStorage() });
+// Init Discord bot
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
+client.login(process.env.DISCORD_TOKEN);
 
+// DB setup
+const db = new Database('./database/verifications.db');
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS verifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT,
+    username TEXT,
+    birthdate TEXT,
+    canvas_image BLOB,
+    selfie_image BLOB,
+    attempts INTEGER DEFAULT 1,
+    blocked INTEGER DEFAULT 0
+  )
+`).run();
+
+// Middleware
 app.use(cors());
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ],
-  partials: [Partials.Message, Partials.Channel, Partials.GuildMember]
-});
-
-const NON_VERIFIED_ROLE_ID = process.env.NON_VERIFIED_ROLE_ID;
-
-// ✅ Verification submission handler
-app.post('/verify', upload.fields([
+// Multer setup
+const storage = multer.memoryStorage();
+const upload = multer({ storage }).fields([
+  { name: 'idImage', maxCount: 1 },
   { name: 'selfieImage', maxCount: 1 },
-]), async (req, res) => {
-  try {
-    const { username, userId, birthdate, canvasData } = req.body;
-    const selfieImage = req.files?.selfieImage?.[0];
+  { name: 'canvasImage', maxCount: 1 }
+]);
 
-    if (!userId || !birthdate || !canvasData || !selfieImage) {
-      return res.status(400).send('Missing required fields.');
-    }
+// POST /verify
+app.post('/verify', upload, async (req, res) => {
+  const { username, userId, birthdate } = req.body;
+  const idImage = req.files['idImage']?.[0]; // Still required for validation, but not sent
+  const selfieImage = req.files['selfieImage']?.[0];
+  const canvasImage = req.files['canvasImage']?.[0];
 
-    const canvasBuffer = Buffer.from(canvasData.replace(/^data:image\/png;base64,/, ""), 'base64');
-    const selfieBuffer = selfieImage.buffer;
+  if (!userId || !idImage || !selfieImage || !canvasImage) {
+    return res.status(400).send('Missing required fields.');
+  }
 
-    db.storeVerification({
-      username,
-      userId,
-      birthdate,
-      canvasImage: canvasBuffer,
-      selfieImage: selfieBuffer
-    });
+  const existing = db.prepare('SELECT * FROM verifications WHERE user_id = ?').get(userId);
+  if (existing && existing.blocked) {
+    return res.status(403).send('You are blocked from verifying.');
+  }
 
-    const modChannelId = process.env.MOD_CHANNEL_ID;
-    const modChannel = await client.channels.fetch(modChannelId).catch(() => null);
-    if (!modChannel) return res.status(500).send('Mod channel not found.');
+  if (existing) {
+    db.prepare('UPDATE verifications SET attempts = attempts + 1 WHERE user_id = ?').run(userId);
+  } else {
+    db.prepare(`
+      INSERT INTO verifications (user_id, username, birthdate, canvas_image, selfie_image)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(userId, username, birthdate, canvasImage.buffer, selfieImage.buffer);
+  }
 
+  // Send to mod channel
+  const modChannel = await client.channels.fetch(process.env.MOD_CHANNEL_ID);
+  if (modChannel && modChannel.isTextBased()) {
     const embed = new EmbedBuilder()
-      .setTitle('🛡️ New Verification Submission')
-      .setDescription(`User: ${username} (${userId})\nBirthdate: ${birthdate}`)
+      .setTitle('New Verification Submission')
+      .addFields(
+        { name: 'Username', value: username, inline: true },
+        { name: 'User ID', value: userId, inline: true },
+        { name: 'Birthday', value: birthdate, inline: true }
+      )
       .setColor(0xffcc00)
+      .setFooter({ text: 'ChronoSeal Verification' })
       .setTimestamp();
 
-    await modChannel.send({
-      embeds: [embed],
-      files: [
-        { attachment: canvasBuffer, name: 'id_canvas.png' },
-        { attachment: selfieBuffer, name: 'selfie.png' }
-      ]
-    });
+    const attachments = [
+      new AttachmentBuilder(canvasImage.buffer, { name: 'canvas.png' }),
+      new AttachmentBuilder(selfieImage.buffer, { name: 'selfie.png' })
+    ];
 
-    // ✅ Auto-assign non-verified role
-    const guild = client.guilds.cache.get(process.env.GUILD_ID);
-    if (guild) {
-      const member = await guild.members.fetch(userId).catch(() => null);
-      if (member && NON_VERIFIED_ROLE_ID) {
-        await member.roles.add(NON_VERIFIED_ROLE_ID).catch(console.error);
-      }
-    }
-
-    res.redirect('/submitted.html');
-  } catch (error) {
-    console.error('Error handling verification:', error);
-    res.status(500).send('Internal Server Error');
+    await modChannel.send({ embeds: [embed], files: attachments });
   }
+
+  // Give non-verified role
+  try {
+    const guild = await client.guilds.fetch(process.env.GUILD_ID);
+    const member = await guild.members.fetch(userId);
+    const nonVerifiedRoleId = process.env.NON_VERIFIED_ROLE_ID;
+
+    if (nonVerifiedRoleId && member && !member.roles.cache.has(nonVerifiedRoleId)) {
+      await member.roles.add(nonVerifiedRoleId);
+    }
+  } catch (err) {
+    console.error('Role assignment error:', err);
+  }
+
+  res.redirect('/submitted.html');
 });
 
-// ✅ Start server
 app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
+  console.log(`Server running on port ${port}`);
 });
-
-// ✅ Start Discord bot
-client.once('ready', () => {
-  console.log(`Bot logged in as ${client.user.tag}`);
-});
-
-client.login(process.env.DISCORD_TOKEN);
