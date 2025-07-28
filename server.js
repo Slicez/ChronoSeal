@@ -1,111 +1,67 @@
 require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
-const path = require('path');
 const fs = require('fs');
-const { Client, GatewayIntentBits, EmbedBuilder, AttachmentBuilder } = require('discord.js');
-const Database = require('better-sqlite3');
-const cors = require('cors');
+const path = require('path');
+const { Client, GatewayIntentBits, AttachmentBuilder } = require('discord.js');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
-// Init Discord bot
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
-client.login(process.env.DISCORD_TOKEN);
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
+});
 
-// DB setup
-const db = new Database('./database/verifications.db');
-db.prepare(`
-  CREATE TABLE IF NOT EXISTS verifications (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT,
-    username TEXT,
-    birthdate TEXT,
-    canvas_image BLOB,
-    selfie_image BLOB,
-    attempts INTEGER DEFAULT 1,
-    blocked INTEGER DEFAULT 0
-  )
-`).run();
+const storage = multer.memoryStorage();
+const upload = multer({ storage }).fields([
+  { name: 'canvasImage', maxCount: 1 },
+  { name: 'selfieImage', maxCount: 1 }
+]);
 
-// Middleware
-app.use(cors());
+client.once('ready', () => {
+  console.log(`🤖 Bot is ready as ${client.user.tag}`);
+});
+
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// Multer setup
-const storage = multer.memoryStorage();
-const upload = multer({ storage }).fields([
-  { name: 'idImage', maxCount: 1 },
-  { name: 'selfieImage', maxCount: 1 },
-  { name: 'canvasImage', maxCount: 1 }
-]);
-
-// POST /verify
 app.post('/verify', upload, async (req, res) => {
   const { username, userId, birthdate } = req.body;
-  const idImage = req.files['idImage']?.[0]; // Still required for validation, but not sent
-  const selfieImage = req.files['selfieImage']?.[0];
-  const canvasImage = req.files['canvasImage']?.[0];
+  const files = req.files;
 
-  if (!userId || !idImage || !selfieImage || !canvasImage) {
+  // Validation
+  if (!username || !userId || !birthdate || !files?.canvasImage || !files?.selfieImage) {
     return res.status(400).send('Missing required fields.');
   }
 
-  const existing = db.prepare('SELECT * FROM verifications WHERE user_id = ?').get(userId);
-  if (existing && existing.blocked) {
-    return res.status(403).send('You are blocked from verifying.');
-  }
+  const canvasBuffer = files.canvasImage[0].buffer;
+  const selfieBuffer = files.selfieImage[0].buffer;
 
-  if (existing) {
-    db.prepare('UPDATE verifications SET attempts = attempts + 1 WHERE user_id = ?').run(userId);
-  } else {
-    db.prepare(`
-      INSERT INTO verifications (user_id, username, birthdate, canvas_image, selfie_image)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(userId, username, birthdate, canvasImage.buffer, selfieImage.buffer);
-  }
+  const canvasAttachment = new AttachmentBuilder(canvasBuffer, { name: 'canvas.png' });
+  const selfieAttachment = new AttachmentBuilder(selfieBuffer, { name: 'selfie.png' });
 
-  // Send to mod channel
-  const modChannel = await client.channels.fetch(process.env.MOD_CHANNEL_ID);
-  if (modChannel && modChannel.isTextBased()) {
-    const embed = new EmbedBuilder()
-      .setTitle('New Verification Submission')
-      .addFields(
-        { name: 'Username', value: username, inline: true },
-        { name: 'User ID', value: userId, inline: true },
-        { name: 'Birthday', value: birthdate, inline: true }
-      )
-      .setColor(0xffcc00)
-      .setFooter({ text: 'ChronoSeal Verification' })
-      .setTimestamp();
-
-    const attachments = [
-      new AttachmentBuilder(canvasImage.buffer, { name: 'canvas.png' }),
-      new AttachmentBuilder(selfieImage.buffer, { name: 'selfie.png' })
-    ];
-
-    await modChannel.send({ embeds: [embed], files: attachments });
-  }
-
-  // Give non-verified role
   try {
-    const guild = await client.guilds.fetch(process.env.GUILD_ID);
-    const member = await guild.members.fetch(userId);
-    const nonVerifiedRoleId = process.env.NON_VERIFIED_ROLE_ID;
-
-    if (nonVerifiedRoleId && member && !member.roles.cache.has(nonVerifiedRoleId)) {
-      await member.roles.add(nonVerifiedRoleId);
+    const modChannel = await client.channels.fetch(process.env.MOD_CHANNEL_ID);
+    if (!modChannel) {
+      console.error('❌ Mod channel not found.');
+      return res.status(500).send('Mod channel not found.');
     }
-  } catch (err) {
-    console.error('Role assignment error:', err);
-  }
 
-  res.redirect('/submitted.html');
+    await modChannel.send({
+      content: `🛡️ **New Verification Submission**\n👤 Username: ${username}\n🆔 ID: ${userId}\n🎂 Birthdate: ${birthdate}`,
+      files: [canvasAttachment, selfieAttachment],
+    });
+
+    res.redirect('/submitted.html');
+  } catch (err) {
+    console.error('❌ Error sending verification:', err);
+    res.status(500).send('Error sending verification.');
+  }
 });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+client.login(process.env.DISCORD_TOKEN);
+
+app.listen(PORT, () => {
+  console.log(`🌐 Server listening on port ${PORT}`);
 });
