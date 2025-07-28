@@ -138,61 +138,87 @@
     <button type="submit" onclick="return confirmSubmit()">Submit</button>
   </form>
 
-  <script>
-    const canvas = document.getElementById("drawCanvas");
-    const ctx = canvas.getContext("2d");
-    const penSizeSelect = document.getElementById("penSize");
-    let drawing = false;
-    let img = new Image();
+  
+<script>
+  const canvas = document.getElementById("drawCanvas");
+  const ctx = canvas.getContext("2d");
+  const penSizeSelect = document.getElementById("penSize");
+  let drawing = false;
+  let img = new Image();
 
-    document.getElementById("idImage").addEventListener("change", function (e) {
-      const file = e.target.files[0];
-      if (file) {
-        img.onload = () => {
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
-        };
-        img.src = URL.createObjectURL(file);
-      }
-    });
-
-    canvas.addEventListener("mousedown", () => (drawing = true));
-    canvas.addEventListener("mouseup", () => (drawing = false));
-    canvas.addEventListener("mouseout", () => (drawing = false));
-    canvas.addEventListener("mousemove", draw);
-
-    function draw(e) {
-      if (!drawing) return;
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
-      ctx.beginPath();
-      ctx.arc(x, y, parseInt(penSizeSelect.value), 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    function clearDrawing() {
-      if (img.src) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+  document.getElementById("idImage").addEventListener("change", function (e) {
+    const file = e.target.files[0];
+    if (file) {
+      img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
         ctx.drawImage(img, 0, 0);
-      }
+      };
+      img.src = URL.createObjectURL(file);
     }
+  });
 
-    function previewSelfie(input) {
-      const file = input.files[0];
-      const preview = document.getElementById("selfiePreview");
-      if (file) {
-        preview.src = URL.createObjectURL(file);
-      }
-    }
+  // Mouse Events
+  canvas.addEventListener("mousedown", () => (drawing = true));
+  canvas.addEventListener("mouseup", () => (drawing = false));
+  canvas.addEventListener("mouseout", () => (drawing = false));
+  canvas.addEventListener("mousemove", draw);
 
-    function confirmSubmit() {
-      const canvasData = canvas.toDataURL("image/png");
-      document.getElementById("canvasData").value = canvasData;
-      return confirm("Are you sure you want to submit your verification?");
+  // Touch Events for mobile
+  canvas.addEventListener("touchstart", (e) => {
+    drawing = true;
+    drawTouch(e);
+  });
+  canvas.addEventListener("touchend", () => (drawing = false));
+  canvas.addEventListener("touchcancel", () => (drawing = false));
+  canvas.addEventListener("touchmove", drawTouch);
+
+  function draw(e) {
+    if (!drawing) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    drawCircle(x, y);
+  }
+
+  function drawTouch(e) {
+    if (!drawing) return;
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    drawCircle(x, y);
+  }
+
+  function drawCircle(x, y) {
+    ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
+    ctx.beginPath();
+    ctx.arc(x, y, parseInt(penSizeSelect.value), 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function clearDrawing() {
+    if (img.src) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
     }
-  </script>
+  }
+
+  function previewSelfie(input) {
+    const file = input.files[0];
+    const preview = document.getElementById("selfiePreview");
+    if (file) {
+      preview.src = URL.createObjectURL(file);
+    }
+  }
+
+  function confirmSubmit() {
+    const canvasData = canvas.toDataURL("image/png");
+    document.getElementById("canvasData").value = canvasData;
+    return confirm("Are you sure you want to submit your verification?");
+  }
+</script>
+
 </body>
 </html>
