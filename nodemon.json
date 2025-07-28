@@ -1,0 +1,9 @@
+{
+  "watch": ["server.js", "bot/"],
+  "ext": "js,json",
+  "ignore": ["uploads/", "node_modules/"],
+  "delay": "300",
+  "execMap": {
+    "js": "node"
+  }
+}

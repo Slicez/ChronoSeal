@@ -1,0 +1,23 @@
+{
+  "name": "chronoseal",
+  "version": "1.0.0",
+  "description": "Discord 18+ Verification Bot with Web Panel",
+  "main": "index.js",
+  "scripts": {
+    "start": "concurrently \"nodemon server.js\" \"nodemon bot/index.js\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "better-sqlite3": "^12.2.0",
+    "discord.js": "^14.21.0",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "multer": "^2.0.2"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0",
+    "nodemon": "^3.1.0"
+  }
+}
