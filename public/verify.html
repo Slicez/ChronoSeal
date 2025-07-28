@@ -2,223 +2,183 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ChronoSeal Verification</title>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel&display=swap" rel="stylesheet">
   <style>
     body {
-      font-family: 'Nunito', sans-serif;
-      background-color: #fdfdfd;
-      color: #333;
-      margin: 0;
+      font-family: 'Cinzel', serif;
       padding: 2rem;
+      background: linear-gradient(145deg, #e0eafc, #cfdef3);
+      min-height: 100vh;
+    }
+    .container {
       max-width: 850px;
-      margin-inline: auto;
+      background: white;
+      border-radius: 15px;
+      padding: 2rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      margin: auto;
     }
-
-    h1 {
+    h1.title {
       text-align: center;
-      font-size: 2.2rem;
-      margin-bottom: 1.5rem;
-      color: #4b0082;
+      color: #363636;
     }
-
-    label {
-      display: block;
-      margin-top: 1.5rem;
-      font-weight: bold;
-      color: #222;
-    }
-
-    input, select, button {
-      width: 100%;
-      margin-top: 0.4rem;
-      padding: 0.6rem 0.75rem;
-      font-family: inherit;
-      font-size: 1rem;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      box-sizing: border-box;
-    }
-
-    button {
-      background-color: #4b0082;
-      color: white;
-      border: none;
-      font-weight: bold;
-      cursor: pointer;
-      margin-top: 1.5rem;
-      transition: background-color 0.2s;
-    }
-
-    button:hover {
-      background-color: #371061;
-    }
-
     canvas {
-      border: 2px dashed #aaa;
+      border: 2px dashed #db2828;
       display: block;
-      margin-top: 1rem;
-      max-width: 100%;
-      border-radius: 8px;
+      margin-top: 10px;
+      border-radius: 10px;
     }
-
-    .buttons {
-      display: flex;
-      justify-content: flex-end;
-      margin-top: 0.8rem;
-    }
-
-    .buttons button {
-      width: auto;
-      background-color: #e74c3c;
-      margin-left: auto;
-    }
-
     .instructions {
-      background: #f1f0fa;
-      border-left: 6px solid #4b0082;
-      padding: 1.25rem;
-      border-radius: 8px;
-      margin-bottom: 1.5rem;
       font-size: 0.95rem;
+      background: #fff7e6;
+      border-left: 4px solid #f39c12;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      border-radius: 10px;
     }
-
-    .preview {
+    .preview-image {
+      max-width: 100%;
       margin-top: 1rem;
-      max-height: 250px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
+      border: 2px solid #ccc;
+      border-radius: 10px;
+    }
+    label.label {
+      font-weight: bold;
+    }
+    .button.is-link {
+      background: linear-gradient(135deg, #6e8efb, #a777e3);
+      border: none;
+    }
+    .button.is-link:hover {
+      background: linear-gradient(135deg, #5b76e1, #925ed1);
     }
   </style>
 </head>
 <body>
-  <h1>ChronoSeal Verification</h1>
+  <div class="container">
+    <h1 class="title">ChronoSeal Verification</h1>
 
-  <div class="instructions">
-    <p><strong>Step 1:</strong> Upload a photo of your ID. Only your birthdate needs to be visible.</p>
-    <p><strong>Step 2:</strong> Use the red pen to blur or hide any private info.</p>
-    <p><strong>Step 3:</strong> Upload a selfie of yourself for ID match.</p>
-    <p><strong>Step 4:</strong> Click Submit to send everything for review.</p>
-    <p><strong>Need your Discord ID?</strong><br>Enable Developer Mode → Right-click your name → Copy ID.</p>
+    <p class="instructions">
+      📜 <strong>Instructions:</strong><br>
+      • Upload a photo of your ID and use the red pen to draw over all personal info <strong>except your birthdate</strong>.<br>
+      • Upload a clear selfie for verification.<br>
+      • Enter your <strong>Discord Username</strong> (e.g. ChronoUser) and <strong>User ID</strong>.<br><br>
+
+      🧭 <strong>How to find your Discord User ID:</strong><br>
+      <strong>On Desktop:</strong><br>
+      1. Go to <code>Settings ⚙️ > Advanced</code><br>
+      2. Turn on <strong>Developer Mode</strong><br>
+      3. Right-click your username in a server > <code>Copy User ID</code><br><br>
+
+      <strong>On Mobile:</strong><br>
+      1. Tap your profile picture > <code>Advanced</code><br>
+      2. Enable <strong>Developer Mode</strong><br>
+      3. Go to a server, tap your profile, then tap <code>⋮</code> > <code>Copy ID</code><br><br>
+
+      If you're unsure, ask a mod for help!
+    </p>
+
+    <form action="/verify" method="POST" enctype="multipart/form-data">
+      <div class="field">
+        <label class="label">Discord Username</label>
+        <div class="control">
+          <input class="input" type="text" name="username" required />
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label">Discord User ID</label>
+        <div class="control">
+          <input class="input" type="text" name="userId" required />
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label">Birthdate</label>
+        <div class="control">
+          <input class="input" type="date" name="birthdate" required />
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label">Upload ID Image</label>
+        <div class="control">
+          <input type="file" accept="image/*" id="idInput" required />
+        </div>
+        <canvas id="idCanvas" width="500" height="300"></canvas>
+      </div>
+
+      <div class="field">
+        <label class="label">Upload Selfie</label>
+        <div class="control">
+          <input type="file" name="selfie" accept="image/*" id="selfieInput" required />
+        </div>
+        <img id="selfiePreview" class="preview-image" />
+      </div>
+
+      <input type="hidden" name="canvasImage" id="canvasImage" />
+
+      <div class="field is-grouped is-grouped-right">
+        <button type="submit" class="button is-link">Submit</button>
+      </div>
+    </form>
   </div>
 
-  <form id="verifyForm" method="POST" action="/verify" enctype="multipart/form-data">
-    <label for="username">Discord Username</label>
-    <input type="text" name="username" required />
+  <script>
+    const idInput = document.getElementById('idInput');
+    const canvas = document.getElementById('idCanvas');
+    const ctx = canvas.getContext('2d');
+    const selfieInput = document.getElementById('selfieInput');
+    const selfiePreview = document.getElementById('selfiePreview');
+    const canvasImage = document.getElementById('canvasImage');
+    let drawing = false;
 
-    <label for="userId">Discord User ID</label>
-    <input type="text" name="userId" required />
-
-    <label for="birthdate">Birthdate</label>
-    <input type="date" name="birthdate" required />
-
-    <label for="idImage">Upload your ID</label>
-    <input type="file" id="idImage" accept="image/*" required />
-
-    <label for="penSize">Pen Size</label>
-    <select id="penSize">
-      <option value="3">Thin</option>
-      <option value="6">Medium</option>
-      <option value="10" selected>Thick</option>
-    </select>
-
-    <canvas id="drawCanvas" width="600" height="400"></canvas>
-
-    <div class="buttons">
-      <button type="button" onclick="clearDrawing()">Clear Drawing</button>
-    </div>
-
-    <input type="hidden" name="canvasData" id="canvasData"/>
-
-    <label for="selfieImage">Upload a Selfie</label>
-    <input type="file" name="selfieImage" accept="image/*" required onchange="previewSelfie(this)"/>
-    <img id="selfiePreview" class="preview"/>
-
-    <button type="submit" onclick="return confirmSubmit()">Submit</button>
-  </form>
-
-  
-<script>
-  const canvas = document.getElementById("drawCanvas");
-  const ctx = canvas.getContext("2d");
-  const penSizeSelect = document.getElementById("penSize");
-  let drawing = false;
-  let img = new Image();
-
-  document.getElementById("idImage").addEventListener("change", function (e) {
-    const file = e.target.files[0];
-    if (file) {
-      img.onload = () => {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
+    idInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+        };
+        img.src = reader.result;
       };
-      img.src = URL.createObjectURL(file);
-    }
-  });
+      reader.readAsDataURL(file);
+    });
 
-  // Mouse Events
-  canvas.addEventListener("mousedown", () => (drawing = true));
-  canvas.addEventListener("mouseup", () => (drawing = false));
-  canvas.addEventListener("mouseout", () => (drawing = false));
-  canvas.addEventListener("mousemove", draw);
+    selfieInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        selfiePreview.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
 
-  // Touch Events for mobile
-  canvas.addEventListener("touchstart", (e) => {
-    drawing = true;
-    drawTouch(e);
-  });
-  canvas.addEventListener("touchend", () => (drawing = false));
-  canvas.addEventListener("touchcancel", () => (drawing = false));
-  canvas.addEventListener("touchmove", drawTouch);
+    canvas.addEventListener('mousedown', () => { drawing = true; });
+    canvas.addEventListener('mouseup', () => { drawing = false; });
+    canvas.addEventListener('mouseout', () => { drawing = false; });
 
-  function draw(e) {
-    if (!drawing) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    drawCircle(x, y);
-  }
+    canvas.addEventListener('mousemove', (e) => {
+      if (!drawing) return;
+      const rect = canvas.getBoundingClientRect();
+      ctx.fillStyle = 'rgba(255,0,0,0.6)';
+      ctx.beginPath();
+      ctx.arc(e.clientX - rect.left, e.clientY - rect.top, 8, 0, Math.PI * 2);
+      ctx.fill();
+    });
 
-  function drawTouch(e) {
-    if (!drawing) return;
-    e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    const touch = e.touches[0];
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
-    drawCircle(x, y);
-  }
-
-  function drawCircle(x, y) {
-    ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
-    ctx.beginPath();
-    ctx.arc(x, y, parseInt(penSizeSelect.value), 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  function clearDrawing() {
-    if (img.src) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
-    }
-  }
-
-  function previewSelfie(input) {
-    const file = input.files[0];
-    const preview = document.getElementById("selfiePreview");
-    if (file) {
-      preview.src = URL.createObjectURL(file);
-    }
-  }
-
-  function confirmSubmit() {
-    const canvasData = canvas.toDataURL("image/png");
-    document.getElementById("canvasData").value = canvasData;
-    return confirm("Are you sure you want to submit your verification?");
-  }
-</script>
-
+    document.querySelector('form').addEventListener('submit', function (e) {
+      const imageData = canvas.toDataURL();
+      canvasImage.value = imageData;
+    });
+  </script>
 </body>
 </html>
