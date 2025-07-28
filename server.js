@@ -1,48 +1,33 @@
 require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const cors = require('cors');
 const { Client, GatewayIntentBits, Partials, EmbedBuilder } = require('discord.js');
-const db = require('./database/db');
+const db = require('./database/db.js');
 
 const app = express();
-const PORT = process.env.PORT || 8080;
-const STAFF_IDS = process.env.STAFF_ROLE_IDS.split(',');
-const VERIFIED_ROLE_ID = process.env.VERIFIED_ROLE_ID;
-const NON_VERIFIED_ROLE_ID = process.env.NON_VERIFIED_ROLE_ID;
+const port = process.env.PORT || 3000;
+
+const upload = multer({ storage: multer.memoryStorage() });
+
+app.use(cors());
+app.use(express.static('public'));
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.MessageContent
   ],
-  partials: [Partials.Channel],
+  partials: [Partials.Message, Partials.Channel, Partials.GuildMember]
 });
 
-// Multer setup (memory storage)
-const storage = multer.memoryStorage();
-const upload = multer({
-  storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB
-    fieldSize: 10 * 1024 * 1024, // increase field size limit for canvasData
-  },
-});
+const NON_VERIFIED_ROLE_ID = process.env.NON_VERIFIED_ROLE_ID;
 
-app.use(express.static('public'));
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
-
-//Server the form Page
-app.get('/verify',(req,res) => {
-  res.sendFile(path.join(__dirname, 'public', 'verify.html'));
-});
-
-// Handle verification submission
+// ✅ Verification submission handler
 app.post('/verify', upload.fields([
   { name: 'selfieImage', maxCount: 1 },
 ]), async (req, res) => {
@@ -54,8 +39,8 @@ app.post('/verify', upload.fields([
       return res.status(400).send('Missing required fields.');
     }
 
-    const selfieBuffer = selfieImage.buffer;
     const canvasBuffer = Buffer.from(canvasData.replace(/^data:image\/png;base64,/, ""), 'base64');
+    const selfieBuffer = selfieImage.buffer;
 
     db.storeVerification({
       username,
@@ -65,11 +50,9 @@ app.post('/verify', upload.fields([
       selfieImage: selfieBuffer
     });
 
-    const modChannelId = process.env.MOD_CHANNEL_ID; // Make sure this returns the mod channel ID
-    if (!modChannelId) return res.status(500).send('Mod channel not configured.');
-
-    const modChannel = await client.channels.fetch(modChannelId);
-    if (!modChannel) return res.status(404).send('Mod channel not found.');
+    const modChannelId = process.env.MOD_CHANNEL_ID;
+    const modChannel = await client.channels.fetch(modChannelId).catch(() => null);
+    if (!modChannel) return res.status(500).send('Mod channel not found.');
 
     const embed = new EmbedBuilder()
       .setTitle('🛡️ New Verification Submission')
@@ -81,25 +64,34 @@ app.post('/verify', upload.fields([
       embeds: [embed],
       files: [
         { attachment: canvasBuffer, name: 'id_canvas.png' },
-        { attachment: selfieBuffer, name: 'selfie.png' },
-      ],
+        { attachment: selfieBuffer, name: 'selfie.png' }
+      ]
     });
+
+    // ✅ Auto-assign non-verified role
+    const guild = client.guilds.cache.get(process.env.GUILD_ID);
+    if (guild) {
+      const member = await guild.members.fetch(userId).catch(() => null);
+      if (member && NON_VERIFIED_ROLE_ID) {
+        await member.roles.add(NON_VERIFIED_ROLE_ID).catch(console.error);
+      }
+    }
 
     res.redirect('/submitted.html');
   } catch (error) {
-    console.error('Error handling verification submission:', error);
-    res.status(500).send('Something went wrong.');
+    console.error('Error handling verification:', error);
+    res.status(500).send('Internal Server Error');
   }
 });
 
-// Launch bot
+// ✅ Start server
+app.listen(port, () => {
+  console.log(`Server running on http://localhost:${port}`);
+});
+
+// ✅ Start Discord bot
 client.once('ready', () => {
-  console.log(`✅ Discord bot logged in as ${client.user.tag}`);
+  console.log(`Bot logged in as ${client.user.tag}`);
 });
 
 client.login(process.env.DISCORD_TOKEN);
-
-// Start express server
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
-});
