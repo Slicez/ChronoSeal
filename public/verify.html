@@ -7,140 +7,200 @@
   <link href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css" rel="stylesheet">
   <style>
     body {
-      background: linear-gradient(to bottom right, #f0f0f0, #d6e4f0);
+      background: linear-gradient(to bottom right, #f5f7fa, #c3cfe2);
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      margin: 0;
-      padding: 0;
-    }
-    .section {
       padding: 1rem;
     }
     .box {
       background: white;
-      padding: 1.5rem;
+      padding: 2rem;
       border-radius: 12px;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      max-width: 640px;
+      margin: auto;
     }
-    .field {
-      margin-bottom: 1rem;
-    }
-    canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      border-radius: 8px;
-      touch-action: none;
+    #canvas-wrapper {
+      position: relative;
+      width: 100%;
+      overflow: hidden;
     }
     .image-preview {
       max-width: 100%;
       display: block;
       border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
     }
-    .image-container {
-      position: relative;
-      width: 100%;
-      margin-bottom: 1rem;
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
     }
-    @media (max-width: 768px) {
-      .box {
-        padding: 1rem;
-      }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      margin-top: 0.5rem;
+    }
+    .controls button {
+      flex: 1 1 48%;
+      margin-bottom: 0.5rem;
+    }
+    .help {
+      font-size: 0.85rem;
+      margin-top: 0.25rem;
     }
   </style>
 </head>
 <body>
   <section class="section">
-    <div class="container">
-      <div class="box">
-        <h1 class="title is-4 has-text-centered">🔒 Verify Your Identity</h1>
-        <form id="verifyForm" action="/verify" method="POST" enctype="multipart/form-data">
-          <div class="field">
-            <label class="label">Discord Username</label>
-            <div class="control">
-              <input class="input" type="text" name="username" required>
-            </div>
+    <div class="box">
+      <h1 class="title is-4 has-text-centered">🔒 Verify Your Identity</h1>
+      <form id="verifyForm" action="/verify" method="POST" enctype="multipart/form-data">
+        <div class="field">
+          <label class="label">Discord Username</label>
+          <div class="control">
+            <input class="input" type="text" name="username" required>
           </div>
-
-          <div class="field">
-            <label class="label">Discord User ID</label>
-            <div class="control">
-              <input class="input" type="text" name="userId" required>
-            </div>
-            <p class="help">
-              <strong>Desktop:</strong> User Settings → Advanced → Enable Developer Mode → Right-click your profile → Copy ID<br>
-              <strong>Mobile:</strong> Tap profile → 3 dots (top right) → Copy ID
-            </p>
+        </div>
+        <div class="field">
+          <label class="label">Discord User ID</label>
+          <div class="control">
+            <input class="input" type="text" name="userId" required>
           </div>
-
-          <div class="field">
-            <label class="label">Birthday</label>
-            <div class="control">
-              <input class="input" type="date" name="birthdate" required>
-            </div>
+          <p class="help">
+            <strong>Desktop:</strong> User Settings → Advanced → Enable Developer Mode → Right-click your profile → Copy ID<br>
+            <strong>Mobile:</strong> Tap your profile → 3 dots (top right) → Copy ID
+          </p>
+        </div>
+        <div class="field">
+          <label class="label">Birthday</label>
+          <div class="control">
+            <input class="input" type="date" name="birthdate" required>
           </div>
-
-          <div class="field">
-            <label class="label">Upload Your ID</label>
-            <div class="control">
-              <input class="input" type="file" name="idImage" id="idImage" accept="image/*" required>
-            </div>
-            <div class="image-container">
-              <img id="idPreview" class="image-preview" alt="ID Preview">
-              <canvas id="drawing-canvas"></canvas>
-            </div>
-            <button class="button is-danger mt-2" type="button" id="clearBtn">Clear Drawing</button>
+        </div>
+        <div class="field">
+          <label class="label">Upload Your ID</label>
+          <div class="control">
+            <input class="input" type="file" name="idImage" id="idImage" accept="image/*" required>
           </div>
-
-          <div class="field">
-            <label class="label">Upload a Selfie</label>
-            <div class="control">
-              <input class="input" type="file" name="selfieImage" id="selfieImage" accept="image/*" required>
-            </div>
-            <img id="selfiePreview" class="image-preview" alt="Selfie Preview">
+          <div id="canvas-wrapper">
+            <img id="idPreview" class="image-preview" alt="ID Preview">
+            <canvas id="drawCanvas"></canvas>
           </div>
-
-          <div class="field mt-4">
-            <div class="control">
-              <button class="button is-primary is-fullwidth" type="submit">✅ Submit</button>
-            </div>
+          <div class="controls">
+            <button class="button is-danger" type="button" id="clearBtn">Clear</button>
+            <button class="button is-warning" type="button" id="undoBtn">Undo</button>
+            <button class="button is-info" type="button" id="zoomIn">Zoom In</button>
+            <button class="button is-info" type="button" id="zoomOut">Zoom Out</button>
           </div>
-        </form>
-      </div>
+        </div>
+        <div class="field">
+          <label class="label">Upload a Selfie</label>
+          <div class="control">
+            <input class="input" type="file" name="selfieImage" id="selfieImage" accept="image/*" required>
+          </div>
+          <img id="selfiePreview" class="image-preview" alt="Selfie Preview">
+        </div>
+        <div class="field mt-4">
+          <div class="control">
+            <button class="button is-success is-fullwidth" type="submit">✅ Submit</button>
+          </div>
+        </div>
+      </form>
     </div>
   </section>
 
   <script>
-    const canvas = document.getElementById('drawing-canvas');
+    const canvas = document.getElementById('drawCanvas');
     const ctx = canvas.getContext('2d');
     const previewImg = document.getElementById('idPreview');
     const fileInput = document.getElementById('idImage');
     const selfieInput = document.getElementById('selfieImage');
     const selfiePreview = document.getElementById('selfiePreview');
+    const clearBtn = document.getElementById('clearBtn');
+    const undoBtn = document.getElementById('undoBtn');
+    const zoomInBtn = document.getElementById('zoomIn');
+    const zoomOutBtn = document.getElementById('zoomOut');
 
     let drawing = false;
-    let lastX, lastY;
+    let paths = [];
+    let currentPath = [];
+    let scale = 1;
 
-    ctx.strokeStyle = 'red';
-    ctx.lineWidth = 5;
-    ctx.lineCap = 'round';
-
-    function resizeCanvasToImage() {
-      const rect = previewImg.getBoundingClientRect();
-      canvas.style.width = rect.width + 'px';
-      canvas.style.height = rect.height + 'px';
-      canvas.width = rect.width;
-      canvas.height = rect.height;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    function resizeCanvas() {
+      canvas.width = previewImg.clientWidth;
+      canvas.height = previewImg.clientHeight;
+      canvas.style.width = previewImg.clientWidth + "px";
+      canvas.style.height = previewImg.clientHeight + "px";
+      redraw();
     }
 
-    window.addEventListener('resize', () => {
-      if (previewImg.src) resizeCanvasToImage();
+    function redraw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = 'red';
+      ctx.lineWidth = 5;
+      for (const path of paths) {
+        ctx.beginPath();
+        for (let i = 0; i < path.length; i++) {
+          const pt = path[i];
+          if (i === 0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
+        }
+        ctx.stroke();
+      }
+    }
+
+    function getPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+      const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+      return { x, y };
+    }
+
+    function startDrawing(e) {
+      drawing = true;
+      currentPath = [getPos(e)];
+    }
+
+    function draw(e) {
+      if (!drawing) return;
+      currentPath.push(getPos(e));
+      paths.push([...currentPath]);
+      redraw();
+    }
+
+    function stopDrawing() {
+      drawing = false;
+    }
+
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseout', stopDrawing);
+    canvas.addEventListener('touchstart', startDrawing);
+    canvas.addEventListener('touchmove', draw);
+    canvas.addEventListener('touchend', stopDrawing);
+
+    clearBtn.addEventListener('click', () => {
+      paths = [];
+      redraw();
     });
 
-    previewImg.onload = () => {
-      resizeCanvasToImage();
-    };
+    undoBtn.addEventListener('click', () => {
+      paths.pop();
+      redraw();
+    });
+
+    zoomInBtn.addEventListener('click', () => {
+      scale += 0.1;
+      previewImg.style.transform = `scale(${scale})`;
+      canvas.style.transform = `scale(${scale})`;
+    });
+
+    zoomOutBtn.addEventListener('click', () => {
+      scale = Math.max(0.5, scale - 0.1);
+      previewImg.style.transform = `scale(${scale})`;
+      canvas.style.transform = `scale(${scale})`;
+    });
 
     fileInput.addEventListener('change', e => {
       const file = e.target.files[0];
@@ -148,6 +208,7 @@
       const reader = new FileReader();
       reader.onload = event => {
         previewImg.src = event.target.result;
+        previewImg.onload = resizeCanvas;
       };
       reader.readAsDataURL(file);
     });
@@ -160,53 +221,6 @@
         selfiePreview.src = event.target.result;
       };
       reader.readAsDataURL(file);
-    });
-
-    function getPos(evt) {
-      const rect = canvas.getBoundingClientRect();
-      const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
-      const clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
-      return {
-        x: clientX - rect.left,
-        y: clientY - rect.top
-      };
-    }
-
-    function startDraw(evt) {
-      evt.preventDefault();
-      const pos = getPos(evt);
-      drawing = true;
-      lastX = pos.x;
-      lastY = pos.y;
-    }
-
-    function draw(evt) {
-      if (!drawing) return;
-      evt.preventDefault();
-      const pos = getPos(evt);
-      ctx.beginPath();
-      ctx.moveTo(lastX, lastY);
-      ctx.lineTo(pos.x, pos.y);
-      ctx.stroke();
-      lastX = pos.x;
-      lastY = pos.y;
-    }
-
-    function stopDraw() {
-      drawing = false;
-    }
-
-    canvas.addEventListener('mousedown', startDraw);
-    canvas.addEventListener('mousemove', draw);
-    canvas.addEventListener('mouseup', stopDraw);
-    canvas.addEventListener('mouseout', stopDraw);
-
-    canvas.addEventListener('touchstart', startDraw);
-    canvas.addEventListener('touchmove', draw, { passive: false });
-    canvas.addEventListener('touchend', stopDraw);
-
-    document.getElementById('clearBtn').addEventListener('click', () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
     });
   </script>
 </body>
