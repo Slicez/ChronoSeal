@@ -1,69 +1,119 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-const db = new Database(path.join(__dirname, 'verifications.db'));
+// Database path now correctly points to project root
+const db = new Database(path.join(__dirname, '../verifications.db'), { verbose: console.log });
 
-// Create the table if it doesn't exist
-db.prepare(`
-  CREATE TABLE IF NOT EXISTS verifications (
-    user_id TEXT PRIMARY KEY,
-    username TEXT,
-    birthdate TEXT,
-    id_image TEXT,
-    selfie_image TEXT,
-    canvas_image TEXT,
-    status TEXT,
-    attempts INTEGER DEFAULT 0
-  )
-`).run();
+// Enable WAL mode for better concurrency
+db.pragma('journal_mode = WAL');
+
+// Create tables with improved schema
+db.transaction(() => {
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS verifications (
+      user_id TEXT PRIMARY KEY,
+      username TEXT NOT NULL,
+      birthdate TEXT NOT NULL,
+      id_image TEXT,
+      selfie_image TEXT,
+      canvas_image TEXT,
+      status TEXT DEFAULT 'pending',
+      attempts INTEGER DEFAULT 1,
+      submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      processed_at TIMESTAMP,
+      processed_by TEXT
+    )
+  `).run();
+
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS blocked_users (
+      user_id TEXT PRIMARY KEY,
+      reason TEXT,
+      blocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      blocked_by TEXT,
+      FOREIGN KEY(user_id) REFERENCES verifications(user_id)
+    )
+  `).run();
+})();
 
 module.exports = {
+  // Store verification with transaction
   storeVerification(data) {
-    const { userId, username, birthdate, idImage, selfieImage, canvasImage } = data;
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO verifications 
-      (user_id, username, birthdate, id_image, selfie_image, canvas_image, status, attempts)
-      VALUES (?, ?, ?, ?, ?, ?, 'pending', COALESCE((SELECT attempts FROM verifications WHERE user_id = ?), 0) + 1)
+      INSERT INTO verifications 
+      (user_id, username, birthdate, id_image, selfie_image, canvas_image)
+      VALUES (@userId, @username, @birthdate, @idImage, @selfieImage, @canvasImage)
+      ON CONFLICT(user_id) DO UPDATE SET
+        username = excluded.username,
+        birthdate = excluded.birthdate,
+        id_image = excluded.id_image,
+        selfie_image = excluded.selfie_image,
+        canvas_image = excluded.canvas_image,
+        attempts = attempts + 1
     `);
-    stmt.run(userId, username, birthdate, idImage, selfieImage, canvasImage, userId);
+    stmt.run({
+      userId: data.userId,
+      username: data.username,
+      birthdate: data.birthdate,
+      idImage: data.idImage || null,
+      selfieImage: data.selfieImage || null,
+      canvasImage: data.canvasImage || null
+    });
   },
 
-  getVerification(userId) {
-    return db.prepare('SELECT * FROM verifications WHERE user_id = ?').get(userId);
-  },
+  // Get verification with prepared statement
+  getVerification: db.prepare('SELECT * FROM verifications WHERE user_id = ?').pluck(),
 
-  approveUser(userId) {
-    db.prepare("UPDATE verifications SET status = 'approved' WHERE user_id = ?").run(userId);
-  },
-
-  denyUser(userId) {
-    db.prepare("UPDATE verifications SET status = 'denied' WHERE user_id = ?").run(userId);
-  },
-
-  blockUser(userId) {
-    const existing = db.prepare('SELECT * FROM verifications WHERE user_id = ?').get(userId);
-    if (existing) {
-      db.prepare("UPDATE verifications SET status = 'denied' WHERE user_id = ?").run(userId);
-    } else {
-      db.prepare("INSERT INTO verifications (user_id, status) VALUES (?, 'denied')").run(userId);
-    }
-    console.log(`User ${userId} has been denied and blocked from verifying again.`);
-  },
-
-  unblockUser(userId) {
-    db.prepare("UPDATE verifications SET status = 'pending' WHERE user_id = ?").run(userId);
-  },
-
-  isBlocked(userId) {
-    const row = db.prepare("SELECT status FROM verifications WHERE user_id = ?").get(userId);
-    return row && row.status === 'denied';
-  },
-
-  logAttempt(userId) {
+  // Approve user with timestamp
+  approveUser(userId, moderatorId) {
     db.prepare(`
       UPDATE verifications 
-      SET attempts = attempts + 1 
+      SET status = 'approved',
+          processed_at = CURRENT_TIMESTAMP,
+          processed_by = ?
       WHERE user_id = ?
-    `).run(userId);
-  }
+    `).run(moderatorId, userId);
+  },
+
+  // Deny user with timestamp
+  denyUser(userId, moderatorId) {
+    db.prepare(`
+      UPDATE verifications 
+      SET status = 'denied',
+          processed_at = CURRENT_TIMESTAMP,
+          processed_by = ?
+      WHERE user_id = ?
+    `).run(moderatorId, userId);
+  },
+
+  // Block user with reason
+  blockUser(userId, moderatorId, reason = '') {
+    db.transaction(() => {
+      this.denyUser(userId, moderatorId);
+      db.prepare(`
+        INSERT OR REPLACE INTO blocked_users 
+        (user_id, blocked_by, reason)
+        VALUES (?, ?, ?)
+      `).run(userId, moderatorId, reason);
+    })();
+  },
+
+  // Check if blocked (separate table)
+  isBlocked(userId) {
+    return !!db.prepare('SELECT 1 FROM blocked_users WHERE user_id = ?').get(userId);
+  },
+
+  // Unblock user
+  unblockUser(userId) {
+    db.prepare('DELETE FROM blocked_users WHERE user_id = ?').run(userId);
+  },
+
+  // Log attempt
+  logAttempt: db.prepare('UPDATE verifications SET attempts = attempts + 1 WHERE user_id = ?'),
+
+  // Close connection
+  close: () => db.close(),
+
+  // Direct access for complex queries
+  get db() { return db; }
 };
