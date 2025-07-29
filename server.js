@@ -16,47 +16,57 @@ const db = require('./database/db');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ==================== CRITICAL FIX #1: PROPER CLIENT INIT ====================
+// ==================== DISCORD CLIENT SETUP ====================
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMembers
-  ],
-  partials: ['MESSAGE', 'CHANNEL', 'REACTION'] // Needed for button interactions
+  ]
 });
 
-// ==================== CRITICAL FIX #2: ENHANCED ERROR HANDLING ====================
-client.on('error', error => {
-  console.error('Discord Client Error:', error);
-});
+// Debug logging
+client.on('debug', console.log);
+client.on('warn', console.log);
 
-process.on('unhandledRejection', error => {
-  console.error('Unhandled Promise Rejection:', error);
-});
+// ==================== EXPRESS CONFIGURATION ====================
+// Serve static files with cache control
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: 0, // Disable caching
+  etag: false
+}));
 
-// ==================== STATIC FILES ====================
-app.use(express.static(path.join(__dirname, 'public')));
-
-// ==================== FILE UPLOAD ====================
+// ==================== FILE UPLOAD CONFIGURATION ====================
 const upload = multer({
   storage: multer.memoryStorage(),
+  fileFilter: (req, file, cb) => {
+    const validMimes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (validMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only JPEG, PNG, or WEBP images allowed'));
+    }
+  },
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB
+    fileSize: 5 * 1024 * 1024, // 5MB
+    files: 2
   }
 }).fields([
-  { name: 'canvasImage', maxCount: 1 },
+  { name: 'idImage', maxCount: 1 },  // Matches your form field name
   { name: 'selfieImage', maxCount: 1 }
 ]);
 
-// ==================== VERIFICATION ENDPOINT ====================
+// ==================== ROUTES ====================
+// Verification form page
+app.get('/verify.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'verify.html'));
+});
+
+// Form submission endpoint
 app.post('/verify', upload, async (req, res) => {
   try {
     console.log('\n=== NEW VERIFICATION REQUEST ===');
-    console.log('Body:', req.body);
-    console.log('Files:', req.files ? Object.keys(req.files) : 'No files');
-
     const { username, userId, birthdate } = req.body;
     const files = req.files;
 
@@ -65,7 +75,7 @@ app.post('/verify', upload, async (req, res) => {
       throw new Error('Missing required fields');
     }
 
-    if (!files?.canvasImage || !files?.selfieImage) {
+    if (!files?.idImage || !files?.selfieImage) {
       throw new Error('Both images are required');
     }
 
@@ -73,9 +83,9 @@ app.post('/verify', upload, async (req, res) => {
       throw new Error('User is blocked from verifying');
     }
 
-    // ==================== CRITICAL FIX #3: PROPER ATTACHMENT HANDLING ====================
+    // Prepare Discord message
     const attachments = [
-      new AttachmentBuilder(files.canvasImage[0].buffer, { name: 'id_proof.png' }),
+      new AttachmentBuilder(files.idImage[0].buffer, { name: 'id_proof.png' }),
       new AttachmentBuilder(files.selfieImage[0].buffer, { name: 'selfie.png' })
     ];
 
@@ -99,19 +109,13 @@ app.post('/verify', upload, async (req, res) => {
       new ButtonBuilder()
         .setCustomId(`verify_deny_${userId}`)
         .setLabel('❌ Deny')
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
-        .setCustomId(`verify_block_${userId}`)
-        .setLabel('⛔ Block')
-        .setStyle(ButtonStyle.Secondary)
+        .setStyle(ButtonStyle.Danger)
     );
 
-    // ==================== CRITICAL FIX #4: CHANNEL VALIDATION ====================
-    console.log('Attempting to send to channel:', process.env.MOD_CHANNEL_ID);
+    // Send to Discord channel
+    console.log('Sending to Discord channel:', process.env.MOD_CHANNEL_ID);
     const channel = await client.channels.fetch(process.env.MOD_CHANNEL_ID);
-    if (!channel) {
-      throw new Error(`Channel ${process.env.MOD_CHANNEL_ID} not found or inaccessible`);
-    }
+    if (!channel) throw new Error('Channel not found or inaccessible');
 
     await channel.send({
       embeds: [embed],
@@ -119,29 +123,34 @@ app.post('/verify', upload, async (req, res) => {
       components: [actionRow]
     });
 
+    // Store verification
     db.storeVerification({
       userId,
       username,
       birthdate,
       idImage: 'discord_upload',
-      selfieImage: 'discord_upload',
-      canvasImage: 'discord_upload'
+      selfieImage: 'discord_upload'
     });
 
-    console.log('Verification successfully sent to Discord');
-    res.json({ success: true });
+    // Send success response
+    console.log('Verification successfully processed');
+    res.sendFile(path.join(__dirname, 'public', 'submitted.html'));
 
   } catch (error) {
-    console.error('VERIFICATION FAILED:', error);
+    console.error('VERIFICATION ERROR:', error.message);
     if (req.body?.userId) db.logAttempt(req.body.userId);
-    res.status(500).json({
-      error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    res.status(500).json({ 
+      error: error.message || 'Internal server error'
     });
   }
 });
 
-// ==================== BUTTON INTERACTIONS ====================
+// Success page
+app.get('/submitted.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'submitted.html'));
+});
+
+// ==================== DISCORD INTERACTIONS ====================
 client.on('interactionCreate', async interaction => {
   if (!interaction.isButton()) return;
 
@@ -158,12 +167,9 @@ client.on('interactionCreate', async interaction => {
         await db.denyUser(userId, interaction.user.id);
         await interaction.reply({ content: `❌ Denied <@${userId}>`, ephemeral: true });
         break;
-      case 'block':
-        await db.blockUser(userId, interaction.user.id, 'Blocked via verification');
-        await interaction.reply({ content: `⛔ Blocked <@${userId}>`, ephemeral: true });
-        break;
     }
 
+    // Disable buttons after processing
     await interaction.message.edit({
       components: [
         new ActionRowBuilder().addComponents(
@@ -184,7 +190,7 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-// ==================== START SERVER ====================
+// ==================== SERVER STARTUP ====================
 client.on('ready', () => {
   console.log(`\n🚀 Bot connected as ${client.user.tag}`);
   console.log(`📢 Monitoring channel: ${process.env.MOD_CHANNEL_ID}`);
@@ -192,7 +198,7 @@ client.on('ready', () => {
 
 client.login(process.env.DISCORD_TOKEN)
   .then(() => {
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`\n🌐 Server running on port ${PORT}`);
       console.log(`📝 Verification page: http://localhost:${PORT}/verify.html`);
     });
@@ -201,3 +207,10 @@ client.login(process.env.DISCORD_TOKEN)
     console.error('\n🔥 FATAL STARTUP ERROR:', error);
     process.exit(1);
   });
+
+// Cleanup on exit
+process.on('SIGTERM', () => {
+  client.destroy();
+  db.close();
+  process.exit(0);
+});
