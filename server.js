@@ -11,7 +11,7 @@ const {
   ButtonBuilder,
   ButtonStyle
 } = require('discord.js');
-const db = require('./db.js');
+const db = require('../db.js');
 
 // Initialize
 const app = express();
