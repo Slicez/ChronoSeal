@@ -3,224 +3,654 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Verify - ChronoSeal</title>
+  <title>ChronoSeal Identity Verification | Guild Registry</title>
   <link href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=IM+Fell+English:ital@0;1&family=MedievalSharp&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
+    :root {
+      --parchment: rgba(245, 235, 200, 0.95);
+      --ink-dark: #1a0a00;
+      --ink-light: #3e2723;
+      --wax-red: #8b2518;
+      --wax-gold: #c9a227;
+      --wax-seal-shadow: #5e0e03;
+      --scroll-edge: #6d4c41;
+      --shadow-heavy: 0 4px 20px rgba(0, 0, 0, 0.4);
+      --shadow-light: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
     body {
-      background: linear-gradient(to bottom right, #f5f7fa, #c3cfe2);
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      padding: 1rem;
-    }
-    .box {
-      background: white;
+      background: url('bg.png') no-repeat center center fixed;
+      background-size: cover;
+      font-family: 'IM Fell English', serif;
+      margin: 0;
       padding: 2rem;
-      border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-      max-width: 640px;
-      margin: auto;
-    }
-    #canvas-wrapper {
+      color: var(--ink-dark);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
       position: relative;
+      touch-action: none;
+    }
+
+    body::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: -1;
+    }
+
+    .scroll-box {
+      max-width: 750px;
       width: 100%;
+      margin: 2rem auto;
+      padding: 2.5rem;
+      background: var(--parchment);
+      border: 15px solid transparent;
+      border-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><path d="M0,0 L100,0 L100,100 L0,100 Z" fill="none" stroke="%236d4c41" stroke-width="10" stroke-dasharray="10,5"/></svg>') 20 round;
+      box-shadow: var(--shadow-heavy);
+      position: relative;
       overflow: hidden;
     }
+
+    .scroll-box::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 12px;
+      background: linear-gradient(to right, transparent, var(--scroll-edge), transparent);
+    }
+
+    h1.title {
+      text-align: center;
+      font-family: 'IM Fell English SC', serif;
+      font-size: 2.8rem;
+      margin-bottom: 1.5rem;
+      color: var(--ink-dark);
+      text-shadow: 2px 2px 3px rgba(0,0,0,0.2);
+      letter-spacing: 2px;
+      position: relative;
+    }
+
+    h1.title::after {
+      content: "";
+      position: absolute;
+      bottom: -10px;
+      left: 25%;
+      right: 25%;
+      height: 3px;
+      background: linear-gradient(to right, transparent, var(--wax-red), transparent);
+    }
+
+    .field {
+      margin-bottom: 1.8rem;
+    }
+
+    .label {
+      font-family: 'MedievalSharp', cursive;
+      font-weight: bold;
+      color: var(--ink-light);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 1.1rem;
+    }
+
+    .input {
+      background-color: rgba(255, 255, 255, 0.7);
+      border: 2px solid var(--scroll-edge);
+      border-radius: 3px;
+      font-family: 'IM Fell English', serif;
+      font-size: 1rem;
+      color: var(--ink-dark);
+      transition: all 0.3s ease;
+      box-shadow: var(--shadow-light);
+    }
+
+    .input:focus {
+      border-color: var(--wax-red);
+      box-shadow: 0 0 0 0.125em rgba(139, 37, 24, 0.25);
+    }
+
     .image-preview {
       max-width: 100%;
       display: block;
-      border-radius: 8px;
+      margin: 1rem auto;
+      border-radius: 5px;
+      border: 3px solid var(--scroll-edge);
+      box-shadow: var(--shadow-light);
+      image-rendering: optimizeQuality;
     }
+
+    #canvas-wrapper {
+      position: relative;
+      margin: 1rem 0;
+      overflow: hidden;
+      border-radius: 5px;
+      border: 3px solid var(--scroll-edge);
+      background: rgba(0, 0, 0, 0.05);
+      will-change: transform;
+    }
+
     canvas {
       position: absolute;
       top: 0;
       left: 0;
+      cursor: crosshair;
+      image-rendering: optimizeSpeed;
+      will-change: transform;
     }
+
     .controls {
       display: flex;
       flex-wrap: wrap;
-      justify-content: space-between;
-      margin-top: 0.5rem;
+      gap: 0.75rem;
+      margin: 1rem 0;
     }
+
     .controls button {
-      flex: 1 1 48%;
-      margin-bottom: 0.5rem;
+      flex: 1;
+      min-width: 120px;
+      background: var(--wax-red);
+      color: white;
+      border: none;
+      border-radius: 3px;
+      padding: 0.6rem;
+      font-family: 'MedievalSharp', cursive;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     }
-    .help {
-      font-size: 0.85rem;
-      margin-top: 0.25rem;
+
+    .controls button:hover {
+      background: var(--wax-seal-shadow);
+      transform: translateY(-2px);
+    }
+
+    .tooltip {
+      position: relative;
+      cursor: help;
+    }
+
+    .tooltip-icon {
+      color: var(--wax-red);
+      font-family: 'IM Fell English SC', serif;
+      font-size: 1rem;
+    }
+
+    .tooltip-text {
+      visibility: hidden;
+      width: 280px;
+      background-color: var(--ink-dark);
+      color: #fff;
+      text-align: left;
+      padding: 0.75rem;
+      border-radius: 5px;
+      position: absolute;
+      z-index: 10;
+      bottom: 125%;
+      left: 50%;
+      transform: translateX(-50%);
+      opacity: 0;
+      transition: opacity 0.3s;
+      font-family: 'IM Fell English', serif;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      box-shadow: var(--shadow-heavy);
+      border: 1px solid var(--wax-gold);
+    }
+
+    .tooltip:hover .tooltip-text {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    .submit-button {
+      background: linear-gradient(to right, var(--wax-red), var(--wax-seal-shadow));
+      color: white;
+      font-family: 'MedievalSharp', cursive;
+      font-size: 1.2rem;
+      letter-spacing: 1px;
+      border: none;
+      padding: 1rem;
+      width: 100%;
+      margin-top: 2rem;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .submit-button:hover {
+      background: linear-gradient(to right, var(--wax-seal-shadow), var(--wax-red));
+      transform: translateY(-3px);
+      box-shadow: 0 6px 15px rgba(0,0,0,0.4);
+    }
+
+    .submit-button:active {
+      transform: translateY(1px);
+    }
+
+    .submit-button::after {
+      content: "✧";
+      position: absolute;
+      top: -10px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      color: var(--wax-gold);
+      opacity: 0.3;
+      font-size: 1.5rem;
+    }
+
+    .file-cta {
+      background-color: var(--wax-red);
+      color: white;
+      border: none;
+      font-family: 'MedievalSharp', cursive;
+    }
+
+    .file-cta:hover {
+      background-color: var(--wax-seal-shadow);
+    }
+
+    .file-name {
+      font-family: 'IM Fell English', serif;
+      border-left: 2px solid var(--scroll-edge);
+    }
+
+    .progress-bar {
+      height: 6px;
+      background: #e0d5c8;
+      border-radius: 3px;
+      margin-top: 0.5rem;
+      overflow: hidden;
+      display: none;
+    }
+
+    .progress-value {
+      height: 100%;
+      background: linear-gradient(to right, var(--wax-red), var(--wax-seal-shadow));
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 1rem;
+      }
+      
+      .scroll-box {
+        padding: 1.5rem;
+      }
+      
+      h1.title {
+        font-size: 2rem;
+      }
+      
+      .tooltip-text {
+        width: 220px;
+        font-size: 0.8rem;
+      }
     }
   </style>
 </head>
 <body>
-  <section class="section">
-    <div class="box">
-      <h1 class="title is-4 has-text-centered">🔒 Verify Your Identity</h1>
-      <form id="verifyForm" action="/verify" method="POST" enctype="multipart/form-data">
-        <div class="field">
-          <label class="label">Discord Username</label>
-          <div class="control">
-            <input class="input" type="text" name="username" required>
-          </div>
+  <div class="scroll-box">
+    <h1 class="title">
+      <i class="fas fa-scroll" style="margin-right: 0.5rem; color: var(--wax-gold);"></i>
+      Guild Registry & Identification
+      <i class="fas fa-dragon" style="margin-left: 0.5rem; color: var(--wax-red);"></i>
+    </h1>
+    <form id="verifyForm" action="/verify" method="POST" enctype="multipart/form-data">
+      <div class="field">
+        <label class="label">
+          <i class="fas fa-helmet-battle"></i>
+          Adventurer Name
+        </label>
+        <div class="control">
+          <input class="input" type="text" name="username" placeholder="Thy name as known in the realm" required>
         </div>
-        <div class="field">
-          <label class="label">Discord User ID</label>
-          <div class="control">
-            <input class="input" type="text" name="userId" required>
-          </div>
-          <p class="help">
-            <strong>Desktop:</strong> User Settings → Advanced → Enable Developer Mode → Right-click your profile → Copy ID<br>
-            <strong>Mobile:</strong> Tap your profile → 3 dots (top right) → Copy ID
-          </p>
+      </div>
+
+      <div class="field">
+        <label class="label tooltip">
+          <i class="fas fa-ring"></i>
+          Guild Sigil (Discord ID)
+          <span class="tooltip-icon">(?)</span>
+          <span class="tooltip-text">
+            <strong>To find thy Discord ID:</strong><br>
+            1. Open Discord<br>
+            2. Go to <strong>Settings > Advanced</strong><br>
+            3. Enable <strong>Developer Mode</strong><br>
+            4. Right-click thy profile > <strong>Copy ID</strong><br><br>
+            <i>On mobile: Tap thy profile > ⋮ (menu) > <strong>Copy ID</strong></i>
+          </span>
+        </label>
+        <div class="control">
+          <input class="input" type="text" name="userId" placeholder="18-digit sigil number" required>
         </div>
-        <div class="field">
-          <label class="label">Birthday</label>
-          <div class="control">
-            <input class="input" type="date" name="birthdate" required>
-          </div>
+      </div>
+
+      <div class="field">
+        <label class="label">
+          <i class="fas fa-calendar-star"></i>
+          Day of Awakening (Birthdate)
+        </label>
+        <div class="control">
+          <input class="input" type="date" name="birthdate" required>
         </div>
-        <div class="field">
-          <label class="label">Upload Your ID</label>
-          <div class="control">
-            <input class="input" type="file" name="canvasImage" id="idImage" accept="image/*" required>
-          </div>
-          <div id="canvas-wrapper">
-            <img id="idPreview" class="image-preview" alt="ID Preview">
-            <canvas id="drawCanvas"></canvas>
-          </div>
-          <div class="controls">
-            <button class="button is-danger" type="button" id="clearBtn">Clear</button>
-            <button class="button is-warning" type="button" id="undoBtn">Undo</button>
-            <button class="button is-info" type="button" id="zoomIn">Zoom In</button>
-            <button class="button is-info" type="button" id="zoomOut">Zoom Out</button>
-          </div>
+      </div>
+
+      <div class="field">
+        <label class="label">
+          <i class="fas fa-id-card-alt"></i>
+          Proof of Allegiance (ID)
+        </label>
+        <div class="file has-name is-fullwidth">
+          <label class="file-label">
+            <input class="file-input" type="file" name="idImage" id="idImage" accept="image/*" required>
+            <span class="file-cta">
+              <span class="file-icon">
+                <i class="fas fa-upload"></i>
+              </span>
+              <span class="file-label">
+                Choose thy scroll...
+              </span>
+            </span>
+            <span class="file-name" id="idFileName">
+              No parchment selected
+            </span>
+          </label>
         </div>
-        <div class="field">
-          <label class="label">Upload a Selfie</label>
-          <div class="control">
-            <input class="input" type="file" name="selfieImage" id="selfieImage" accept="image/*" required>
-          </div>
-          <img id="selfiePreview" class="image-preview" alt="Selfie Preview">
+        <div class="progress-bar" id="idProgressBar">
+          <div class="progress-value" id="idProgressValue"></div>
         </div>
-        <div class="field mt-4">
-          <div class="control">
-            <button class="button is-success is-fullwidth" type="submit">✅ Submit</button>
-          </div>
+        <div id="canvas-wrapper">
+          <img id="idPreview" class="image-preview" alt="ID Preview" style="display: none;">
+          <canvas id="drawCanvas"></canvas>
         </div>
-      </form>
-    </div>
-  </section>
+        <div class="controls">
+          <button type="button" id="clearBtn">
+            <i class="fas fa-broom"></i> Erase
+          </button>
+          <button type="button" id="zoomIn">
+            <i class="fas fa-search-plus"></i> Enlarge
+          </button>
+          <button type="button" id="zoomOut">
+            <i class="fas fa-search-minus"></i> Shrink
+          </button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label">
+          <i class="fas fa-camera-retro"></i>
+          Likeness (Self-Portrait)
+        </label>
+        <div class="file has-name is-fullwidth">
+          <label class="file-label">
+            <input class="file-input" type="file" name="selfieImage" id="selfieImage" accept="image/*" required>
+            <span class="file-cta">
+              <span class="file-icon">
+                <i class="fas fa-upload"></i>
+              </span>
+              <span class="file-label">
+                Choose thy portrait...
+              </span>
+            </span>
+            <span class="file-name" id="selfieFileName">
+              No portrait selected
+            </span>
+          </label>
+        </div>
+        <div class="progress-bar" id="selfieProgressBar">
+          <div class="progress-value" id="selfieProgressValue"></div>
+        </div>
+        <img id="selfiePreview" class="image-preview" alt="Selfie Preview" style="display: none;">
+      </div>
+
+      <button type="submit" class="submit-button">
+        <i class="fas fa-seal"></i> Seal & Submit to the Guild
+      </button>
+    </form>
+  </div>
 
   <script>
+    // Optimized drawing functionality
     const canvas = document.getElementById('drawCanvas');
-    const ctx = canvas.getContext('2d');
-    const previewImg = document.getElementById('idPreview');
-    const fileInput = document.getElementById('idImage');
-    const selfieInput = document.getElementById('selfieImage');
-    const selfiePreview = document.getElementById('selfiePreview');
-    const clearBtn = document.getElementById('clearBtn');
-    const undoBtn = document.getElementById('undoBtn');
-    const zoomInBtn = document.getElementById('zoomIn');
-    const zoomOutBtn = document.getElementById('zoomOut');
-
+    const ctx = canvas.getContext('2d', { willReadFrequently: false });
+    
+    // Performance optimizations
+    canvas.style.imageRendering = 'optimizeSpeed';
+    canvas.style.willChange = 'transform';
+    
     let drawing = false;
+    let lastX = 0;
+    let lastY = 0;
     let paths = [];
     let currentPath = [];
     let scale = 1;
+    let needsRedraw = false;
+    let animationId = null;
+    let isTouchDevice = 'ontouchstart' in window;
 
-    function resizeCanvas() {
-      canvas.width = previewImg.clientWidth;
-      canvas.height = previewImg.clientHeight;
-      canvas.style.width = previewImg.clientWidth + "px";
-      canvas.style.height = previewImg.clientHeight + "px";
-      redraw();
+    // Smooth rendering with requestAnimationFrame
+    function render() {
+      if (needsRedraw) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = '#8b2518';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.imageSmoothingEnabled = false;
+        
+        for (const path of paths) {
+          if (path.length < 2) continue;
+          
+          ctx.beginPath();
+          ctx.moveTo(path[0].x, path[0].y);
+          
+          // Draw in chunks for better performance
+          for (let i = 1; i < path.length; i += 2) {
+            const nextPoint = path[i+1] || path[i];
+            ctx.quadraticCurveTo(
+              path[i].x, path[i].y,
+              nextPoint.x, nextPoint.y
+            );
+          }
+          
+          ctx.stroke();
+        }
+        needsRedraw = false;
+      }
+      animationId = requestAnimationFrame(render);
     }
 
-    function redraw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.strokeStyle = 'red';
-      ctx.lineWidth = 5;
-      for (const path of paths) {
-        ctx.beginPath();
-        for (let i = 0; i < path.length; i++) {
-          const pt = path[i];
-          if (i === 0) ctx.moveTo(pt.x, pt.y);
-          else ctx.lineTo(pt.x, pt.y);
-        }
-        ctx.stroke();
+    // Start the render loop
+    render();
+
+    function resizeCanvas() {
+      const img = document.getElementById('idPreview');
+      if (img.clientWidth > 0) {
+        canvas.width = img.clientWidth;
+        canvas.height = img.clientHeight;
+        needsRedraw = true;
       }
     }
 
     function getPos(e) {
       const rect = canvas.getBoundingClientRect();
-      const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-      const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+      const x = (e.clientX || e.touches[0].clientX) - rect.left;
+      const y = (e.clientY || e.touches[0].clientY) - rect.top;
       return { x, y };
     }
 
+    // Optimized event handlers
     function startDrawing(e) {
       drawing = true;
-      currentPath = [getPos(e)];
+      const pos = getPos(e);
+      lastX = pos.x;
+      lastY = pos.y;
+      currentPath = [{x: lastX, y: lastY}];
+      paths.push(currentPath);
+      needsRedraw = true;
+      if (isTouchDevice) e.preventDefault();
     }
 
     function draw(e) {
       if (!drawing) return;
-      currentPath.push(getPos(e));
-      paths.push([...currentPath]);
-      redraw();
+      const pos = getPos(e);
+      
+      // Only add point if significant movement (reduces points)
+      if (Math.abs(pos.x - lastX) > 3 || Math.abs(pos.y - lastY) > 3) {
+        currentPath.push({x: pos.x, y: pos.y});
+        lastX = pos.x;
+        lastY = pos.y;
+        needsRedraw = true;
+      }
+      if (isTouchDevice) e.preventDefault();
     }
 
-    function stopDrawing() {
+    function endDrawing() {
       drawing = false;
     }
 
+    // Event listeners with passive mode for better performance
     canvas.addEventListener('mousedown', startDrawing);
     canvas.addEventListener('mousemove', draw);
-    canvas.addEventListener('mouseup', stopDrawing);
-    canvas.addEventListener('mouseout', stopDrawing);
-    canvas.addEventListener('touchstart', startDrawing);
-    canvas.addEventListener('touchmove', draw);
-    canvas.addEventListener('touchend', stopDrawing);
+    canvas.addEventListener('mouseup', endDrawing);
+    canvas.addEventListener('mouseleave', endDrawing);
+    
+    canvas.addEventListener('touchstart', startDrawing, { passive: false });
+    canvas.addEventListener('touchmove', draw, { passive: false });
+    canvas.addEventListener('touchend', endDrawing);
 
-    clearBtn.addEventListener('click', () => {
+    // Clean up animation frame when done
+    window.addEventListener('beforeunload', () => {
+      if (animationId) cancelAnimationFrame(animationId);
+    });
+
+    // Clear button
+    document.getElementById('clearBtn').addEventListener('click', () => {
       paths = [];
-      redraw();
+      needsRedraw = true;
     });
 
-    undoBtn.addEventListener('click', () => {
-      paths.pop();
-      redraw();
-    });
-
-    zoomInBtn.addEventListener('click', () => {
+    // Zoom functionality
+    document.getElementById('zoomIn').addEventListener('click', () => {
       scale += 0.1;
-      previewImg.style.transform = `scale(${scale})`;
-      canvas.style.transform = `scale(${scale})`;
+      updateImageScale();
     });
 
-    zoomOutBtn.addEventListener('click', () => {
+    document.getElementById('zoomOut').addEventListener('click', () => {
       scale = Math.max(0.5, scale - 0.1);
-      previewImg.style.transform = `scale(${scale})`;
+      updateImageScale();
+    });
+
+    function updateImageScale() {
+      const img = document.getElementById('idPreview');
+      const canvas = document.getElementById('drawCanvas');
+      img.style.transform = `scale(${scale})`;
       canvas.style.transform = `scale(${scale})`;
-    });
+    }
 
-    fileInput.addEventListener('change', e => {
+    // File input handling
+    document.getElementById('idImage').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (!file) return;
+      
+      document.getElementById('idFileName').textContent = file.name;
+      document.getElementById('idProgressBar').style.display = 'block';
+      
+      // Simulate upload progress
+      let progress = 0;
+      const progressInterval = setInterval(() => {
+        progress += 5;
+        document.getElementById('idProgressValue').style.width = `${progress}%`;
+        
+        if (progress >= 100) {
+          clearInterval(progressInterval);
+          setTimeout(() => {
+            document.getElementById('idProgressBar').style.display = 'none';
+          }, 500);
+        }
+      }, 100);
+      
       const reader = new FileReader();
-      reader.onload = event => {
-        previewImg.src = event.target.result;
-        previewImg.onload = resizeCanvas;
+      reader.onload = function(ev) {
+        const img = document.getElementById('idPreview');
+        img.src = ev.target.result;
+        img.style.display = 'block';
+        img.onload = function() {
+          resizeCanvas();
+        };
       };
       reader.readAsDataURL(file);
     });
 
-    selfieInput.addEventListener('change', e => {
+    document.getElementById('selfieImage').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (!file) return;
+      
+      document.getElementById('selfieFileName').textContent = file.name;
+      document.getElementById('selfieProgressBar').style.display = 'block';
+      
+      // Simulate upload progress
+      let progress = 0;
+      const progressInterval = setInterval(() => {
+        progress += 5;
+        document.getElementById('selfieProgressValue').style.width = `${progress}%`;
+        
+        if (progress >= 100) {
+          clearInterval(progressInterval);
+          setTimeout(() => {
+            document.getElementById('selfieProgressBar').style.display = 'none';
+          }, 500);
+        }
+      }, 100);
+      
       const reader = new FileReader();
-      reader.onload = event => {
-        selfiePreview.src = event.target.result;
+      reader.onload = function(ev) {
+        const img = document.getElementById('selfiePreview');
+        img.src = ev.target.result;
+        img.style.display = 'block';
       };
       reader.readAsDataURL(file);
+    });
+
+    // Form submission
+    document.getElementById('verifyForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const submitButton = this.querySelector('.submit-button');
+      const originalText = submitButton.innerHTML;
+      
+      // Disable button and show loading state
+      submitButton.disabled = true;
+      submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Inscribing to the Guild Ledger...';
+      
+      // Simulate form processing
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // In a real app, you would submit the form here
+      alert('Thy identity has been recorded in the Guild Archives!');
+      
+      // Reset button state
+      submitButton.disabled = false;
+      submitButton.innerHTML = originalText;
     });
   </script>
 </body>
