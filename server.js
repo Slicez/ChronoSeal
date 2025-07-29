@@ -12,11 +12,34 @@ const {
   ButtonStyle
 } = require('discord.js');
 
-// ✅ Corrected DB import for root-level files
 const db = require(path.join(__dirname, 'database/db'));
-
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// ==================== CRITICAL ADDITIONS ====================
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, 'public'), {
+  // Cache control for Zeabur
+  maxAge: 0,
+  etag: false,
+  setHeaders: (res) => {
+    res.set('Cache-Control', 'no-store');
+  }
+}));
+
+// Explicit route for verify.html to handle query parameters
+app.get('/verify.html', (req, res) => {
+  // Debugging: Log the query parameters
+  console.log('Received request with params:', req.query);
+  
+  res.sendFile(path.join(__dirname, 'public', 'verify.html'), {
+    headers: {
+      'Cache-Control': 'no-cache'
+    }
+  });
+});
+
+// ==================== YOUR EXISTING CODE ====================
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -25,21 +48,21 @@ const client = new Client({
   ]
 });
 
-// Multer setup
+// Multer setup (unchanged)
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB
+  limits: { fileSize: 5 * 1024 * 1024 }
 }).fields([
   { name: 'canvasImage', maxCount: 1 },
   { name: 'selfieImage', maxCount: 1 }
 ]);
 
-// Discord ready
+// Discord ready (unchanged)
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}`);
 });
 
-// Routes
+// Verification endpoint (unchanged)
 app.post('/verify', upload, async (req, res) => {
   try {
     const { username, userId, birthdate } = req.body;
@@ -53,8 +76,6 @@ app.post('/verify', upload, async (req, res) => {
     }
 
     db.storeVerification({ userId, username, birthdate });
-
-    // Discord message logic here...
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -62,11 +83,16 @@ app.post('/verify', upload, async (req, res) => {
   }
 });
 
-// Start server
+// Health check endpoint (recommended for Zeabur)
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
+
+// Start server (modified for Zeabur compatibility)
 client.login(process.env.DISCORD_TOKEN)
   .then(() => {
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on http://0.0.0.0:${PORT}`);
     });
   })
   .catch(err => {
