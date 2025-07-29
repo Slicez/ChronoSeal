@@ -13,7 +13,7 @@ const {
 } = require('discord.js');
 
 // ✅ Corrected DB import for root-level files
-const db = require('./database/db');
+const db = require(path.join(__dirname, 'database/db'));
 
 const app = express();
 const PORT = process.env.PORT || 3000;
