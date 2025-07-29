@@ -1,14 +1,17 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-// Database path now correctly points to project root
-const db = new Database(path.join(__dirname, '../verifications.db'), { verbose: console.log });
+// Connect to database (created in project root)
+const db = new Database(path.join(__dirname, '../verifications.db'), { 
+  verbose: console.log 
+});
 
-// Enable WAL mode for better concurrency
+// Enable WAL mode for better performance
 db.pragma('journal_mode = WAL');
 
-// Create tables with improved schema
+// Initialize tables
 db.transaction(() => {
+  // Verifications table
   db.prepare(`
     CREATE TABLE IF NOT EXISTS verifications (
       user_id TEXT PRIMARY KEY,
@@ -25,19 +28,19 @@ db.transaction(() => {
     )
   `).run();
 
+  // Blocked users table
   db.prepare(`
     CREATE TABLE IF NOT EXISTS blocked_users (
       user_id TEXT PRIMARY KEY,
       reason TEXT,
       blocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      blocked_by TEXT,
-      FOREIGN KEY(user_id) REFERENCES verifications(user_id)
+      blocked_by TEXT
     )
   `).run();
 })();
 
 module.exports = {
-  // Store verification with transaction
+  // Store verification data
   storeVerification(data) {
     const stmt = db.prepare(`
       INSERT INTO verifications 
@@ -61,10 +64,10 @@ module.exports = {
     });
   },
 
-  // Get verification with prepared statement
+  // Get verification by user ID
   getVerification: db.prepare('SELECT * FROM verifications WHERE user_id = ?').pluck(),
 
-  // Approve user with timestamp
+  // Approve user
   approveUser(userId, moderatorId) {
     db.prepare(`
       UPDATE verifications 
@@ -75,7 +78,7 @@ module.exports = {
     `).run(moderatorId, userId);
   },
 
-  // Deny user with timestamp
+  // Deny user
   denyUser(userId, moderatorId) {
     db.prepare(`
       UPDATE verifications 
@@ -86,7 +89,7 @@ module.exports = {
     `).run(moderatorId, userId);
   },
 
-  // Block user with reason
+  // Block user
   blockUser(userId, moderatorId, reason = '') {
     db.transaction(() => {
       this.denyUser(userId, moderatorId);
@@ -98,22 +101,14 @@ module.exports = {
     })();
   },
 
-  // Check if blocked (separate table)
+  // Check if user is blocked
   isBlocked(userId) {
     return !!db.prepare('SELECT 1 FROM blocked_users WHERE user_id = ?').get(userId);
   },
 
-  // Unblock user
-  unblockUser(userId) {
-    db.prepare('DELETE FROM blocked_users WHERE user_id = ?').run(userId);
-  },
-
-  // Log attempt
-  logAttempt: db.prepare('UPDATE verifications SET attempts = attempts + 1 WHERE user_id = ?'),
-
-  // Close connection
+  // Close database connection
   close: () => db.close(),
 
-  // Direct access for complex queries
+  // Direct database access
   get db() { return db; }
 };
