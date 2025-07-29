@@ -2,22 +2,32 @@ require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const { Client, GatewayIntentBits, EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { 
+  Client, 
+  GatewayIntentBits, 
+  EmbedBuilder, 
+  AttachmentBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
+} = require('discord.js');
+const db = require('./db.js');
 
-// Initialize Express
+// Initialize
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Discord Client Setup
+// Discord Client
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers
   ]
 });
 
-// Configure Secure File Upload
+// Configure File Uploads
 const upload = multer({
   storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => {
@@ -25,7 +35,7 @@ const upload = multer({
     if (validMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only JPEG, PNG, or WEBP allowed.'));
+      cb(new Error('Only JPEG, PNG, or WEBP images allowed'));
     }
   },
   limits: {
@@ -37,101 +47,191 @@ const upload = multer({
   { name: 'selfieImage', maxCount: 1 }  // Selfie
 ]);
 
-// Discord Ready Event
+// Discord Ready
 client.once('ready', () => {
-  console.log(`🔗 Discord Bot Connected as ${client.user.tag}`);
+  console.log(`🛡️ Bot online as ${client.user.tag}`);
+  db.prepare("PRAGMA journal_mode = WAL").run(); // Better write performance
 });
 
 // Middleware
 app.use(express.static('public'));
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    res.status(400).json({ error: 'File upload error: ' + err.message });
+  } else {
+    next(err);
+  }
+});
 
-// Verification Endpoint
+// Routes
 app.post('/verify', upload, async (req, res) => {
   try {
-    // Input Sanitization
     const { username, userId, birthdate } = req.body;
-    const clean = {
-      username: username.replace(/[\\<>@#&!]/g, '').trim(),
-      userId: userId.replace(/\D/g, ''), // Numbers only
-      birthdate: new Date(birthdate).toISOString().split('T')[0] // YYYY-MM-DD
-    };
+    const files = req.files;
 
     // Validation
-    if (!clean.username || !clean.userId || !clean.birthdate) {
-      return res.status(400).json({ error: 'All text fields are required' });
+    if (!username || !userId || !birthdate || !files?.canvasImage || !files?.selfieImage) {
+      return res.status(400).json({ error: 'All fields are required' });
     }
 
-    if (!req.files?.canvasImage || !req.files?.selfieImage) {
-      return res.status(400).json({ error: 'Both images are required' });
+    // Check if blocked
+    if (db.isBlocked(userId)) {
+      return res.status(403).json({ error: 'Verification blocked. Contact moderators.' });
     }
 
-    // Prepare Discord Attachments
-    const attachments = [
-      new AttachmentBuilder(req.files.canvasImage[0].buffer, { name: 'verified_id.png' }),
-      new AttachmentBuilder(req.files.selfieImage[0].buffer, { name: 'selfie.png' })
+    // Store initial record
+    db.storeVerification({
+      userId,
+      username,
+      birthdate,
+      idImage: 'pending_upload',
+      selfieImage: 'pending_upload',
+      canvasImage: 'pending_upload'
+    });
+
+    // Prepare Discord message
+    const [canvasAttachment, selfieAttachment] = [
+      new AttachmentBuilder(files.canvasImage[0].buffer, { name: 'id_verified.png' }),
+      new AttachmentBuilder(files.selfieImage[0].buffer, { name: 'selfie.png' })
     ];
 
-    // Create Rich Embed
     const embed = new EmbedBuilder()
-      .setColor(0x5865F2) // Discord blurple
-      .setTitle('🛡️ Identity Verification Request')
-      .setDescription('New submission requires review')
+      .setColor(0x5865F2)
+      .setTitle('🛡️ New Verification Request')
+      .setDescription(`**User:** ${username}\n**ID:** ${userId}`)
       .addFields(
-        { name: '👤 Username', value: `\`${clean.username}\``, inline: true },
-        { name: '🆔 User ID', value: `\`${clean.userId}\``, inline: true },
-        { name: '🎂 Birthdate', value: clean.birthdate, inline: true }
+        { name: 'Birthdate', value: birthdate, inline: true },
+        { name: 'Attempts', value: db.getVerification(userId)?.attempts.toString() || '1', inline: true }
       )
-      .setImage('attachment://verified_id.png') // Annotated ID as main image
-      .setThumbnail('attachment://selfie.png')  // Selfie as thumbnail
-      .setFooter({ text: 'Submitted at' })
+      .setImage('attachment://id_verified.png')
+      .setThumbnail('attachment://selfie.png')
       .setTimestamp();
 
-    // Send to Mod Channel
+    const buttons = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`verify_approve_${userId}`)
+        .setLabel('✅ Approve')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`verify_deny_${userId}`)
+        .setLabel('❌ Deny')
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(`verify_block_${userId}`)
+        .setLabel('⛔ Block')
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+    // Send to mod channel
     const modChannel = await client.channels.fetch(process.env.MOD_CHANNEL_ID);
-    await modChannel.send({ 
-      embeds: [embed], 
-      files: attachments 
+    await modChannel.send({
+      embeds: [embed],
+      files: [canvasAttachment, selfieAttachment],
+      components: [buttons]
     });
 
-    // Success Response
-    res.json({ 
-      success: true,
-      redirect: '/submitted.html' 
-    });
+    // Update record
+    db.prepare(`
+      UPDATE verifications 
+      SET status = 'under_review', 
+          id_image = 'discord_upload',
+          selfie_image = 'discord_upload',
+          canvas_image = 'discord_upload'
+      WHERE user_id = ?
+    `).run(userId);
+
+    res.json({ success: true });
 
   } catch (error) {
-    console.error('🚨 Verification Error:', error);
-    
-    // Custom Error Messages
-    let userMessage = 'Verification failed. Please try again.';
-    if (error.message.includes('Invalid file type')) userMessage = 'Only JPEG/PNG/WEBP images allowed';
-    if (error.message.includes('File too large')) userMessage = 'Max file size is 5MB';
-    
+    console.error('Verification error:', error);
+    if (req.body.userId) db.logAttempt(req.body.userId);
     res.status(500).json({ 
-      success: false,
-      error: userMessage 
+      error: error.message || 'Internal server error' 
     });
   }
 });
+
+// Discord Interactions
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isButton()) return;
+
+  const [_, action, userId] = interaction.customId.split('_');
+
+  try {
+    switch (action) {
+      case 'approve':
+        db.approveUser(userId);
+        await assignVerifiedRole(userId);
+        await interaction.reply({
+          content: `✅ Approved <@${userId}>`,
+          ephemeral: true
+        });
+        break;
+
+      case 'deny':
+        db.denyUser(userId);
+        await interaction.reply({
+          content: `❌ Denied <@${userId}>`,
+          ephemeral: true
+        });
+        break;
+
+      case 'block':
+        db.blockUser(userId);
+        await interaction.reply({
+          content: `⛔ Blocked <@${userId}> from verifying`,
+          ephemeral: true
+        });
+        break;
+    }
+
+    // Update message buttons
+    const newButtons = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('processed')
+        .setLabel(`Processed (${action})`)
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true)
+    );
+
+    await interaction.message.edit({ components: [newButtons] });
+
+  } catch (error) {
+    console.error('Interaction error:', error);
+    await interaction.reply({
+      content: '❌ Failed to process action',
+      ephemeral: true
+    });
+  }
+});
+
+// Helper Functions
+async function assignVerifiedRole(userId) {
+  try {
+    const guild = await client.guilds.fetch(process.env.GUILD_ID);
+    const member = await guild.members.fetch(userId);
+    await member.roles.add(process.env.VERIFIED_ROLE_ID);
+  } catch (error) {
+    console.error('Role assignment failed:', error);
+  }
+}
 
 // Start Server
 client.login(process.env.DISCORD_TOKEN)
   .then(() => {
     app.listen(PORT, () => {
-      console.log(`🌐 Server running on port ${PORT}`);
-      console.log(`🛡️ Verification endpoint: http://localhost:${PORT}/verify`);
+      console.log(`🚀 Server running on http://localhost:${PORT}`);
     });
   })
-  .catch(err => {
-    console.error('❌ Failed to login to Discord:', err);
+  .catch(error => {
+    console.error('Fatal startup error:', error);
     process.exit(1);
   });
 
-// Graceful Shutdown
-process.on('SIGINT', () => {
-  console.log('\n🔴 Shutting down gracefully...');
+// Cleanup on exit
+process.on('SIGTERM', () => {
   client.destroy();
-  process.exit();
+  db.close();
+  process.exit(0);
 });
