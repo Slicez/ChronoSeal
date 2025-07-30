@@ -6,10 +6,7 @@ const {
   Client,
   GatewayIntentBits,
   EmbedBuilder,
-  AttachmentBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle
+  AttachmentBuilder
 } = require('discord.js');
 const db = require('./database/db');
 
@@ -95,25 +92,11 @@ app.post('/verify', upload, async (req, res) => {
 
     if (!channel) throw new Error('Channel not found or inaccessible');
 
-    // Test message
     await channel.send('✅ Test message received. Attempting to send embed...');
 
-    // Attempt to send embed
     await channel.send({
       embeds: [embed],
-      files: attachments,
-      components: [
-        new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`verify_approve_${userId}`)
-            .setLabel('✅ Approve')
-            .setStyle(ButtonStyle.Success),
-          new ButtonBuilder()
-            .setCustomId(`verify_deny_${userId}`)
-            .setLabel('❌ Deny')
-            .setStyle(ButtonStyle.Danger)
-        )
-      ]
+      files: attachments
     }).then(() => {
       console.log('[DEBUG] Embed sent successfully.');
     }).catch(err => {
@@ -121,7 +104,6 @@ app.post('/verify', upload, async (req, res) => {
       throw new Error('Failed to send embed to Discord');
     });
 
-    // Store the verification
     db.storeVerification({
       userId,
       username,
@@ -142,45 +124,6 @@ app.post('/verify', upload, async (req, res) => {
 
 app.get('/submitted.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'submitted.html'));
-});
-
-// ==================== DISCORD INTERACTIONS ====================
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isButton()) return;
-
-  const [_, action, userId] = interaction.customId.split('_');
-  console.log(`Processing ${action} for ${userId}`);
-
-  try {
-    switch (action) {
-      case 'approve':
-        await db.approveUser(userId, interaction.user.id);
-        await interaction.reply({ content: `✅ Approved <@${userId}>`, ephemeral: true });
-        break;
-      case 'deny':
-        await db.denyUser(userId, interaction.user.id);
-        await interaction.reply({ content: `❌ Denied <@${userId}>`, ephemeral: true });
-        break;
-    }
-
-    await interaction.message.edit({
-      components: [
-        new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`processed_${action}_${userId}`)
-            .setLabel(`Processed (${action})`)
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(true)
-        )
-      ]
-    });
-  } catch (error) {
-    console.error('INTERACTION ERROR:', error);
-    await interaction.reply({
-      content: '❌ Failed to process action',
-      ephemeral: true
-    });
-  }
 });
 
 // ==================== STARTUP ====================
